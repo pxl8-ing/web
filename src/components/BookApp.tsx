@@ -33,8 +33,10 @@ export function BookApp({ page, section }: { page: Page; section: string }) {
   const [email, setEmail] = useState("");
   const [token, setToken] = useState("");
   const [settings, setSettings] = useState(book);
-  const [title, setTitle] = useState("Chapter 1");
-  const [slug, setSlug] = useState("chapter-1");
+  const nextChapter =
+    Math.max(0, ...page.chapters.map((chapter) => chapter.position)) + 1;
+  const [title, setTitle] = useState(`Chapter ${nextChapter}`);
+  const [slug, setSlug] = useState(`chapter-${nextChapter}`);
   const [draft, setDraft] = useState<z.infer<typeof bookDraftSchema> | null>(
     page.draft?.draft ?? null,
   );
@@ -46,9 +48,6 @@ export function BookApp({ page, section }: { page: Page; section: string }) {
     corrections: Correction[];
   } | null>(null);
   const draftRef = useRef(draft);
-  useEffect(() => {
-    draftRef.current = draft;
-  }, [draft]);
   const writing = section === "write";
   const signing = section === "sign-in";
   const returning = section === "checkout/return";
@@ -82,6 +81,7 @@ export function BookApp({ page, section }: { page: Page; section: string }) {
     return () => window.removeEventListener("beforeunload", prevent);
   }, [dirty]);
   const change = (next: NonNullable<typeof draft>) => {
+    draftRef.current = next;
     setDraft(next);
     setDirty(true);
     setChecks(null);
@@ -95,8 +95,13 @@ export function BookApp({ page, section }: { page: Page; section: string }) {
       draft,
     });
     setRevision(result.revision);
-    setDirty(false);
-    setStatus("Draft saved privately.");
+    const changedWhileSaving = draftRef.current !== draft;
+    setDirty(changedWhileSaving);
+    setStatus(
+      changedWhileSaving
+        ? "Draft saved. Newer edits are unsaved."
+        : "Draft saved privately.",
+    );
   }
   return (
     <main className="mx-auto min-h-dvh w-full max-w-3xl px-5 py-10 text-white">

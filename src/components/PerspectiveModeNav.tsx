@@ -80,7 +80,7 @@ export const PerspectiveModeNav = ({
 
   if (showViewMode) {
     items.push({
-      emoji: "👁️",
+      emoji: "𓁹",
       href: parentHref || buildTopicPath(trimmedTopicName),
       key: "view",
       label: parentHref ? "Back to parent" : "View",

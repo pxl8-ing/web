@@ -130,7 +130,8 @@ export const fulfillBookSession = async (
       reader_id: string;
       amount_minor: number;
       session_id: string | null;
-    }>`SELECT id,reader_id,amount_minor,session_id FROM book_orders WHERE id=${session.metadata!.orderId} FOR UPDATE;`;
+      payment_intent_id: string | null;
+    }>`SELECT id,reader_id,amount_minor,session_id,payment_intent_id FROM book_orders WHERE id=${session.metadata!.orderId} FOR UPDATE;`;
     const order = rows[0];
     if (
       !order ||
@@ -147,6 +148,8 @@ export const fulfillBookSession = async (
         ? session.payment_intent
         : session.payment_intent?.id;
     if (!intent) throw new Error("Missing payment intent.");
+    if (order.payment_intent_id && order.payment_intent_id !== intent)
+      throw new Error("Payment intent does not match the book order.");
     // Retrieve the current refund total so delayed completion events cannot restore refunded access.
     const pi = await getStripeClient().paymentIntents.retrieve(intent, {
       expand: ["latest_charge"],
@@ -171,7 +174,18 @@ export const processBookWebhook = async (event: Stripe.Event) => {
       typeof charge.payment_intent === "string"
         ? charge.payment_intent
         : charge.payment_intent?.id;
-    if (intent && charge.currency === "usd")
-      await sql`UPDATE book_orders SET refunded_minor=GREATEST(refunded_minor,LEAST(amount_minor,${charge.amount_refunded})) WHERE payment_intent_id=${intent};`;
+    if (!intent || charge.currency !== "usd") return;
+    // Stripe copies the PaymentIntent metadata onto its Charge. The order ID
+    // lets a refund find the row even if the completion event is still pending.
+    const orderId =
+      charge.metadata?.purpose === "book" ? charge.metadata.orderId : null;
+    await sql`
+      UPDATE book_orders
+      SET payment_intent_id = ${intent},
+          refunded_minor = GREATEST(refunded_minor, LEAST(amount_minor, ${charge.amount_refunded}))
+      WHERE amount_minor = ${charge.amount} AND (
+        payment_intent_id = ${intent} OR (id::text = ${orderId ?? null} AND payment_intent_id IS NULL)
+      );
+    `;
   }
 };

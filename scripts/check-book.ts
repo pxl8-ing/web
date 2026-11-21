@@ -1,6 +1,9 @@
 // Local smoke test: creates and removes only its own uniquely named chapter.
 import { SQL } from "bun";
+import type Stripe from "stripe";
 import { bookAuthorPath, bookChapterPath, bookPath } from "../src/lib/book";
+import { processBookWebhook } from "../src/lib/bookPayments.server";
+import { sql } from "../src/lib/db.server";
 const db = new SQL(
   process.env.DATABASE_URL ||
     `postgres://${encodeURIComponent(process.env.POSTGRES_USER || "postgres")}:${encodeURIComponent(process.env.POSTGRES_PASSWORD || "postgres")}@${process.env.POSTGRES_HOST || "postgres"}:${process.env.POSTGRES_PORT || 5432}/${process.env.POSTGRES_DB || "postgres"}`,
@@ -141,7 +144,27 @@ try {
     headers: { Cookie: `book_reader=${readerToken}` },
   });
   assert((await paidPage.text()).includes(text), "buyer can read paid chapter");
-  await db`UPDATE book_orders SET refunded_minor=amount_minor WHERE id=${orders[0].id}`;
+  assert(
+    paidPage.headers.get("cache-control")?.includes("no-store"),
+    "paid page is not cacheable",
+  );
+  const paymentIntent = `pi_${slug}`;
+  const refund = (amount: number) =>
+    processBookWebhook({
+      type: "charge.refunded",
+      data: {
+        object: {
+          payment_intent: paymentIntent,
+          currency: "usd",
+          amount: 500,
+          amount_refunded: amount,
+          metadata: { purpose: "book", orderId: orders[0].id },
+        },
+      },
+    } as Stripe.Event);
+  // The refund can arrive before the completion webhook records its intent ID.
+  await refund(500);
+  await refund(100);
   const refundedPage = await fetch(origin + chapterPath, {
     headers: { Cookie: `book_reader=${readerToken}` },
   });
@@ -162,7 +185,7 @@ try {
   const freePage = await fetch(origin + chapterPath);
   assert((await freePage.text()).includes(text), "free chapter visible");
   console.log(
-    "Book smoke passed: login, draft privacy, concurrent edits, publishing, paywall alternate paths, free access.",
+    "Book smoke passed: author login, private drafts, edit conflicts, publishing, paywall, buyer access, and out-of-order refunds.",
   );
 } finally {
   if (readerId) {
@@ -172,4 +195,5 @@ try {
   }
   if (topicId) await db`DELETE FROM topics WHERE id=${topicId}`;
   await db.close();
+  await sql.close?.();
 }

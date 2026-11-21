@@ -47,13 +47,13 @@ export const Route = createFileRoute("/api/p/$id/prompt")({
           String(row.perspective ?? ""),
         ).renderedHtml;
 
-        return Response.json({
-          perspective: {
-            ...row,
-            rendered_html: renderedHtml,
+        return Response.json(
+          {
+            perspective: { ...row, rendered_html: renderedHtml },
+            generatedAt: new Date().toISOString(),
           },
-          generatedAt: new Date().toISOString(),
-        });
+          { headers: { "Cache-Control": "private, no-store" } },
+        );
       },
     },
   },

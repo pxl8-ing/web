@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequest } from "@tanstack/react-start/server";
+import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
 import { z } from "zod/v4";
 import { resolveTopicTokenCookieFromRequest } from "@/lib/topicTokenCookies";
 
@@ -13,6 +13,7 @@ export const loadPerspectiveById = createServerFn({ method: "GET" })
     schema.parse(value),
   )
   .handler(async ({ data, context }) => {
+    setResponseHeader("Cache-Control", "private, no-store");
     const request =
       (context as { request?: Request } | undefined)?.request ?? getRequest();
     const cookie = data.topicName

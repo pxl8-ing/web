@@ -113,7 +113,7 @@ export const Token = ({ name, nextPath, topicId }: TokenProps) => {
               setShowToken((current) => !current);
             }}
           >
-            👁️
+            𓁹
           </button>
         </div>
 

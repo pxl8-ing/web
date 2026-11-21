@@ -1,4 +1,4 @@
-import { getRequest } from "@tanstack/react-start/server";
+import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod/v4";
 
@@ -17,6 +17,7 @@ export const loadChildPerspectives = createServerFn({ method: "GET" })
     }) => childPerspectiveSchema.parse(value),
   )
   .handler(async ({ data }) => {
+    setResponseHeader("Cache-Control", "private, no-store");
     const { getChildPerspectives } =
       await import("@/lib/getPerspectives.server");
     const { canReadBookPerspective } = await import("@/lib/bookAccess.server");
