@@ -11,6 +11,8 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // Vitest's fork watchdog requires IPC channel methods unavailable in Bun 1.4.5.
+    pool: "threads",
     include: ["tests/**/*.test.ts"],
   },
 });
